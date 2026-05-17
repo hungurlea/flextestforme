@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>胡鬧廚房：究極排班 - Flexbox 冒險之旅</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Vue 3 Global Build CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Font Awesome 圖標 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Canvas Confetti 慶祝特效 -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Sans+TC:wght@400;700;900&display=swap');
+        
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #1a1512;
+            color: #f4ece1;
+            overflow-x: hidden;
+        }
+
+        .game-title-font {
+            font-family: 'ZCOOL KuaiLe', 'Noto Sans TC', sans-serif;
+        }
+
+        /* 滾動條美化 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #2b201a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cd5a1e;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #e66f2d;
+        }
+
+        /* 廚房地磚紋理與主題背景 */
+        .floor-royal {
+            background-color: #3d2f26;
+            background-image: radial-gradient(#4d3e33 20%, transparent 20%),
+                              radial-gradient(#4d3e33 20%, transparent 20%);
+            background-size: 40px 40px;
+            background-position: 0 0, 20px 20px;
+        }
+
+        .floor-lava {
+            background-color: #26110d;
+            background-image: radial-gradient(#5a1d13 20%, transparent 20%);
+            background-size: 30px 30px;
+        }
+
+        .floor-river {
+            background-color: #1e3a47;
+            background-image: repeating-linear-gradient(45deg, #1d333f 0px, #1d333f 10px, #264657 10px, #264657 20px);
+        }
+
+        .floor-ice {
+            background-color: #d1e8f2;
+            background-image: radial-gradient(#e6f4f8 20%, transparent 20%);
+            background-size: 35px 35px;
+        }
+
+        .floor-monster {
+            background-color: #2b0c16;
+            background-image: radial-gradient(#4a1224 20%, transparent 20%);
+            background-size: 40px 40px;
+        }
+
+        /* 呼吸動畫效果 */
+        @keyframes gentle-bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+        .chef-bounce {
+            animation: gentle-bounce 2s infinite ease-in-out;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 10px rgba(230, 111, 45, 0.4); }
+            50% { box-shadow: 0 0 25px rgba(230, 111, 45, 0.8); }
+        }
+        .order-glow {
+            animation: pulse-glow 3s infinite;
+        }
+
+        /* 熔岩餘燼動畫 */
+        @keyframes ember {
+            0% { transform: translateY(100%) scale(1); opacity: 0; }
+            50% { opacity: 0.8; }
+            100% { transform: translateY(-100px) scale(0.5); opacity: 0; }
+        }
+        .ember-particle {
+            animation: ember 4s infinite linear;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+    <div id="app" class="flex flex-col min-h-screen" v-cloak>
+        
+        <!-- 動態 CSS 注入 -->
+        <component :is="'style'">
+            .user-kitchen-container {
+                display: flex !important;
+                {{ userCode }}
+            }
+            .target-kitchen-container {
+                display: flex !important;
+                {{ levels[currentLevelIndex].correctCSS }}
+            }
+        </component>
+
+        <!-- 頂部導航與關卡管理區 -->
+        <header class="bg-[#2b201a] border-b-4 border-[#1a1512] py-3 px-6 shadow-xl flex flex-wrap justify-between items-center gap-4 z-40">
+            <div class="flex items-center space-x-4">
+                <div class="bg-[#cd5a1e] text-[#f4ece1] px-4 py-2 rounded-xl border-2 border-[#1a1512] font-black text-xl shadow-md transform rotate-[-2deg] game-title-font flex items-center space-x-2">
+                    <i class="fa-solid fa-utensils"></i>
+                    <span>胡鬧廚房：究極排班</span>
+                </div>
+                <div class="text-[#f4ece1]/80 text-sm hidden md:block">
+                    <span class="bg-[#e66f2d]/20 text-[#e66f2d] font-bold px-3 py-1 rounded-full border border-[#e66f2d]/40">
+                        時空魔法修練：Flexbox
+                    </span>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <!-- 關卡選擇器 -->
+                <div class="relative">
+                    <button @click="toggleLevelMenu = !toggleLevelMenu" class="bg-[#413127] border-2 border-[#2b201a] text-[#f4ece1] px-4 py-2 rounded-lg hover:bg-[#523e32] transition flex items-center space-x-2 font-bold shadow-sm">
+                        <span>關卡: {{ currentLevelIndex + 1 }} / 12</span>
+                        <i class="fa-solid fa-chevron-down text-xs"></i>
+                    </button>
+                    <div v-if="toggleLevelMenu" class="absolute right-0 mt-2 w-72 bg-[#2b201a] rounded-lg border-2 border-[#413127] shadow-2xl py-2 z-50 max-h-96 overflow-y-auto">
+                        <div v-for="(level, idx) in levels" :key="idx" 
+                             @click="selectLevel(idx)"
+                             class="px-4 py-2 hover:bg-[#cd5a1e]/20 cursor-pointer flex items-center justify-between border-b border-[#413127]/30 transition"
+                             :class="{'bg-[#cd5a1e]/40 border-l-4 border-l-[#cd5a1e] font-bold': currentLevelIndex === idx}">
+                            <div class="flex flex-col">
+                                <span class="text-xs text-[#e66f2d]">關卡 {{ idx + 1 }} - {{ level.stage }}</span>
+                                <span class="text-sm text-[#f4ece1] truncate w-48">{{ level.title }}</span>
+                            </div>
+                            <span v-if="completedLevels.includes(idx)" class="text-green-500 text-sm">
+                                <i class="fa-solid fa-circle-check"></i>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 查看答案按鈕 -->
+                <button @click="revealAnswer" class="bg-[#4d382b] hover:bg-[#cd5a1e] border-2 border-[#2b201a] text-yellow-300 px-3 py-2 rounded-lg transition text-xs font-bold flex items-center space-x-1" title="查看正確答案">
+                    <i class="fa-solid fa-key"></i>
+                    <span>查看答案</span>
+                </button>
+
+                <!-- 重設按鈕 -->
+                <button @click="resetCurrentLevel" class="bg-[#4d382b] hover:bg-red-900 border-2 border-[#2b201a] text-[#f4ece1] p-2 rounded-lg transition" title="重設當前關卡">
+                    <i class="fa-solid fa-rotate-right"></i>
+                </button>
+            </div>
+        </header>
+
+        <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 p-4 md:p-6 bg-[#1a1512] max-w-7xl mx-auto w-full">
+            
+            <!-- 左側控制區：對話、程式碼編輯器、提示（Lg 佔 5 格） -->
+            <div class="lg:col-span-5 flex flex-col space-y-4">
+                
+                <!-- 洋蔥國王與凱文對話框 -->
+                <div class="bg-[#2b201a] rounded-2xl border-4 border-[#4d382b] p-4 shadow-xl relative overflow-hidden order-glow flex items-start space-x-4">
+                    <!-- 裝飾木板紋理 -->
+                    <div class="absolute inset-0 bg-gradient-to-br from-[#3c2a1e]/20 to-transparent pointer-events-none"></div>
+                    
+                    <!-- 角色頭像 -->
+                    <div class="flex-shrink-0 relative">
+                        <div class="w-16 h-16 rounded-full border-4 border-[#cd5a1e] overflow-hidden bg-[#413127] flex items-center justify-center shadow-lg">
+                            <span v-if="currentLevel.advisor === 'onion'" class="text-3xl">🧅</span>
+                            <span v-else class="text-3xl">🐶</span>
+                        </div>
+                        <div class="absolute -bottom-1 -right-1 bg-[#cd5a1e] text-[#f4ece1] px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-[#1a1512]">
+                            {{ currentLevel.advisor === 'onion' ? '國王' : '凱文' }}
+                        </div>
+                    </div>
+
+                    <!-- 對話內容 -->
+                    <div class="flex-1 min-w-0">
+                        <h3 class="text-sm font-black text-[#e66f2d] uppercase tracking-wider">
+                            {{ currentLevel.stage }} • {{ currentLevel.title }}
+                        </h3>
+                        <p class="text-sm text-[#f4ece1] mt-1 leading-relaxed">
+                            {{ currentLevel.story }}
+                        </p>
+                        <!-- 目標說明 -->
+                        <div class="mt-2 bg-[#1a1512]/40 p-2 rounded-lg border-l-4 border-l-[#cd5a1e] text-xs text-[#f4ece1]/90">
+                            <strong class="text-[#e66f2d]">任務目標：</strong>{{ currentLevel.targetText }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 點單出單機：代碼編輯器 -->
+                <div class="bg-[#fcf8f2] text-[#2b201a] rounded-2xl border-4 border-[#bca383] shadow-2xl overflow-hidden flex flex-col relative">
+                    <!-- 出單孔鋸齒外觀 -->
+                    <div class="bg-[#bca383] h-3 w-full flex justify-between px-1">
+                        <div v-for="n in 30" :key="n" class="w-2 h-2 bg-[#2b201a] rounded-full -translate-y-1"></div>
+                    </div>
+                    
+                    <div class="p-4 flex-1 flex flex-col">
+                        <div class="flex justify-between items-center mb-2 border-b-2 border-dashed border-[#bca383]/60 pb-2">
+                            <span class="text-xs font-black tracking-widest text-[#8c6d4f] uppercase">
+                                <i class="fa-solid fa-receipt mr-1"></i> ORDER #{{ currentLevelIndex + 1 }}
+                            </span>
+                            <span class="text-xs font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-full">
+                                限時排班中
+                            </span>
+                        </div>
+
+                        <!-- 擬真程式碼編輯區 -->
+                        <div class="bg-[#1f1a14] text-[#a9b7c6] p-4 rounded-xl font-mono text-sm leading-relaxed shadow-inner relative flex-1">
+                            <div class="text-[#8c949e] select-none">// 皇家廚房指令終端機</div>
+                            <div>
+                                <span class="text-[#e66f2d]">#kitchen-passage</span> {
+                            </div>
+                            <div class="pl-4 flex items-center">
+                                <span class="text-[#4e97d9]">display</span>:
+                                <span class="text-[#a9b7c6] ml-1">flex</span>;
+                            </div>
+                            
+                            <!-- 輸入框區 -->
+                            <div class="pl-4 mt-1 relative flex items-start">
+                                <div class="text-gray-500 select-none mr-2 flex flex-col text-right w-4">
+                                    <span v-for="n in lineCount" :key="n">{{ n + 2 }}</span>
+                                </div>
+                                <textarea v-model="userInput" 
+                                          ref="editor"
+                                          @input="handleInput"
+                                          :readonly="levelPassed"
+                                          rows="4" 
+                                          class="w-full bg-transparent text-[#e8c07d] focus:outline-none resize-none font-mono placeholder-[#4c566a] overflow-y-auto leading-relaxed border-l-2 border-[#cd5a1e] pl-2"
+                                          placeholder="/* 請在此處輸入排班語法，例如： */&#10;justify-content: center;"></textarea>
+                            </div>
+
+                            <div class="mt-1">}</div>
+
+                            <div v-if="!levelPassed" class="mt-4 flex justify-end">
+                                <button @click="checkAnswer" class="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-[#f4ece1] font-black px-6 py-2.5 rounded-xl shadow-lg transform active:scale-95 transition flex items-center space-x-2 border-2 border-[#1a1512]">
+                                    <i class="fa-solid fa-circle-check"></i>
+                                    <span>確認答案</span>
+                                </button>
+                            </div>
+                            
+                            <!-- 通關遮罩 -->
+                            <div v-if="levelPassed" class="absolute inset-0 bg-[#12100e]/80 flex flex-col items-center justify-center rounded-xl p-4 z-10 transition">
+                                <div class="text-green-400 text-4xl mb-2 animate-bounce">
+                                    <i class="fa-solid fa-circle-check"></i>
+                                </div>
+                                <p class="text-white font-bold text-lg">🎉 完美出餐！廚師就位！</p>
+                                <button @click="nextLevel" class="mt-4 bg-[#cd5a1e] hover:bg-[#e66f2d] text-white px-6 py-2 rounded-xl font-black shadow-lg transform active:scale-95 transition flex items-center space-x-2">
+                                    <span>前進下一關</span>
+                                    <i class="fa-solid fa-chevron-right"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 筆記提示快捷區 -->
+                <div class="bg-[#2b201a] rounded-xl border-2 border-[#413127] p-3 shadow-md">
+                    <div class="text-xs text-[#e66f2d] font-bold mb-2 flex items-center">
+                        <i class="fa-solid fa-lightbulb mr-1.5"></i>
+                        <span>洋蔥國王的筆記寶典（點擊查看詳解與自動輸入）</span>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button v-for="prop in ['justify-content', 'align-items', 'flex-direction', 'flex-wrap']"
+                                :key="prop"
+                                @click="openNotebook(prop)"
+                                class="bg-[#4d382b] hover:bg-[#5f4637] text-[#f4ece1] px-3 py-1.5 rounded-lg text-xs font-mono font-bold border border-[#2b201a] hover:border-[#cd5a1e] transition flex items-center space-x-1">
+                            <span>{{ prop }}</span>
+                            <i class="fa-solid fa-book-open text-[10px] text-[#e66f2d]"></i>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="lg:col-span-7 flex flex-col space-y-4">
+                
+                <!-- 廚房烹飪競技場 -->
+                <div class="flex-1 bg-[#251b15] rounded-3xl border-4 border-[#413127] shadow-inner relative overflow-hidden flex flex-col min-h-[480px]">
+                    
+                    <!-- 關卡特定背景紋理與效果 -->
+                    <div class="absolute inset-0" :class="getFloorClass(currentLevel.theme)"></div>
+                    
+                    <!-- 火山關卡效果 -->
+                    <div v-if="currentLevel.theme === 'lava'" class="absolute inset-0 pointer-events-none overflow-hidden">
+                        <div class="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-red-600/40 via-orange-500/10 to-transparent"></div>
+                        <div v-for="n in 6" :key="n" class="ember-particle absolute bottom-0 bg-orange-500 rounded-full w-2 h-2 opacity-0"
+                             :style="{left: `${n * 15}%`, animationDelay: `${n * 0.7}s`}"></div>
+                    </div>
+
+                    <!-- 河道關卡效果 -->
+                    <div v-if="currentLevel.theme === 'river'" class="absolute inset-0 pointer-events-none flex flex-col justify-between">
+                        <div class="h-6 bg-[#172c38]/80 border-b border-[#214356] flex justify-around items-center text-[10px] text-cyan-300/40 font-mono">
+                            <span>🌊 急流竹筏特訓</span>
+                        </div>
+                    </div>
+
+                    <!-- 意麵巨獸關卡效果 -->
+                    <div v-if="currentLevel.theme === 'monster'" class="absolute inset-0 pointer-events-none flex flex-col justify-between overflow-hidden">
+                        <div class="absolute -top-16 left-1/2 -translate-x-1/2 w-[200%] h-40 bg-radial-gradient from-red-950/80 via-transparent to-transparent flex flex-col items-center justify-end pb-2">
+                            <div class="text-[#e66f2d] text-4xl font-black tracking-widest uppercase animate-pulse">
+                                👹 意麵巨獸正在吞噬王國！
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 頂部狀態區 -->
+                    <div class="relative z-10 p-3 bg-black/40 border-b border-white/5 flex justify-between items-center text-xs">
+                        <div class="flex items-center space-x-2">
+                            <span class="inline-block w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
+                            <span class="font-bold text-[#e66f2d]">廚房代號：{{ currentLevel.kitchenCode }}</span>
+                        </div>
+                        <div class="text-[#f4ece1]/70">
+                            物理定位監控器：<span class="text-green-400 font-bold font-mono">ACTIVE</span>
+                        </div>
+                    </div>
+
+                    <!-- 廚房工作通道 (Flex 容器) -->
+                    <div class="flex-1 p-6 relative flex flex-col justify-center items-center">
+                        <div class="w-full h-full relative border-4 border-dashed border-[#cd5a1e]/30 rounded-2xl bg-black/20 p-4">
+                            
+                            <!-- 1. 虛線目標盤 (Targets Layer) -->
+                            <div class="absolute inset-4 target-kitchen-container select-none pointer-events-none z-10 opacity-60">
+                                <div v-for="(chef, idx) in currentLevel.chefs" 
+                                     :key="'target-'+idx"
+                                     class="target-plate w-20 h-20 md:w-24 md:h-24 m-1 flex items-center justify-center relative">
+                                    <div class="w-16 h-16 md:w-20 md:h-20 border-4 border-dashed border-yellow-400 bg-yellow-400/20 rounded-full flex items-center justify-center animate-pulse">
+                                        <div class="text-2xl opacity-60">
+                                            {{ currentLevel.foodEmoji || '🍽️' }}
+                                        </div>
+                                    </div>
+                                    <div class="absolute -bottom-2 bg-yellow-400 text-[#1a1512] px-2 py-0.5 rounded-full text-[9px] font-black">
+                                        出餐點 {{ idx + 1 }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 2. 玩家控制廚師/食物層 (User Layer) -->
+                            <div class="absolute inset-4 user-kitchen-container z-20 transition-all duration-300">
+                                <div v-for="(chefType, idx) in currentLevel.chefs" 
+                                     :key="'user-'+idx"
+                                     ref="chefs"
+                                     class="chef-item w-20 h-20 md:w-24 md:h-24 m-1 flex flex-col items-center justify-center relative chef-bounce transition-all duration-300"
+                                     :style="{animationDelay: `${idx * 0.2}s`}">
+                                    
+                                    <!-- 廚師外觀卡牌 -->
+                                    <div class="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-[#3d2f26] border-2 border-[#e66f2d] shadow-xl flex flex-col items-center justify-center relative overflow-hidden group">
+                                        <div v-if="currentLevel.theme === 'lava' || currentLevelIndex === 11" class="absolute inset-0 bg-red-600/20 animate-pulse"></div>
+
+                                        <!-- 廚師圖標 -->
+                                        <span class="text-3xl md:text-4xl z-10 drop-shadow-md">
+                                            {{ getChefEmoji(chefType) }}
+                                        </span>
+
+                                        <!-- 手捧的菜餚 -->
+                                        <div class="absolute top-1 right-1 bg-white/90 rounded-full w-6 h-6 flex items-center justify-center shadow-md z-20 border border-amber-600">
+                                            <span class="text-sm">{{ currentLevel.foodEmoji || '🍔' }}</span>
+                                        </div>
+                                        
+                                        <!-- 廚師名條 -->
+                                        <div class="absolute bottom-0 w-full bg-[#e66f2d]/90 text-center py-0.5 text-[9px] md:text-[10px] font-black tracking-wider text-[#1a1512]">
+                                            {{ getChefName(chefType) }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- 遊戲底部輔助提示條 -->
+                    <div class="p-3 bg-[#1d1511] text-xs text-center border-t border-white/5 text-[#f4ece1]/50">
+                        <i class="fa-solid fa-circle-info mr-1"></i>
+                        將所有的廚師精準分配到對應的 <span class="text-yellow-400 font-black">黃色虛線出餐點</span> 即可過關。
+                    </div>
+
+                </div>
+
+            </div>
+
+        </main>
+
+        <!-- Toast 提示組件 -->
+        <div v-if="toast.show" 
+             class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 max-w-sm w-full px-4 transform translate-y-0">
+            <div class="p-4 rounded-2xl shadow-2xl border-2 text-sm flex items-start space-x-3 backdrop-blur-sm"
+                 :class="{
+                     'bg-green-950/90 border-green-500 text-green-200': toast.type === 'success',
+                     'bg-red-950/90 border-red-500 text-red-200': toast.type === 'error'
+                 }">
+                <div class="text-xl">
+                    <i v-if="toast.type === 'success'" class="fa-solid fa-circle-check text-green-400"></i>
+                    <i v-else class="fa-solid fa-triangle-exclamation text-red-400 animate-pulse"></i>
+                </div>
+                <div class="flex-1">
+                    <p class="font-black" :class="toast.type === 'success' ? 'text-green-300' : 'text-red-300'">
+                        {{ toast.type === 'success' ? '出餐成功！' : '皇家廚房警告！' }}
+                    </p>
+                    <p class="text-xs mt-1 leading-relaxed whitespace-pre-line">{{ toast.message }}</p>
+                </div>
+                <button @click="toast.show = false" class="text-white/60 hover:text-white transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- 筆記寶典模態視窗 -->
+        <div v-if="activeNotebook" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 transition-all">
+            <div class="bg-[#fcf8f2] text-[#2b201a] rounded-3xl border-4 border-[#bca383] max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                
+                <div class="bg-[#bca383] p-4 text-[#2b201a] font-black flex justify-between items-center border-b-4 border-[#2b201a]/10">
+                    <div class="flex items-center space-x-2 text-lg">
+                        <i class="fa-solid fa-book-open text-[#cd5a1e]"></i>
+                        <span>洋蔥國王的皇家筆記：{{ activeNotebook }}</span>
+                    </div>
+                    <button @click="activeNotebook = null" class="text-[#2b201a] hover:text-red-700 text-xl transition">
+                        <i class="fa-solid fa-circle-xmark"></i>
+                    </button>
+                </div>
+
+                <div class="p-6 overflow-y-auto flex-1 space-y-6 text-sm">
+                    <p class="text-xs text-[#8c6d4f] font-bold border-b-2 border-dashed border-[#bca383]/40 pb-2">
+                        皇家祕傳代碼解釋，主廚，點擊任一屬性值即可「快速寫入」終端機！
+                    </p>
+
+                    <div v-for="(item, val) in notebookData[activeNotebook]" :key="val" 
+                         @click="insertValue(activeNotebook, val)"
+                         class="p-4 bg-white hover:bg-amber-50 rounded-2xl border-2 border-[#bca383]/40 hover:border-[#cd5a1e] cursor-pointer shadow-sm transition flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                        
+                        <div class="flex-1">
+                            <div class="font-mono font-black text-[#cd5a1e] text-base flex items-center space-x-1">
+                                <span>{{ val }}</span>
+                                <i class="fa-solid fa-square-arrow-up-right text-[10px] text-gray-400"></i>
+                            </div>
+                            <p class="text-xs text-[#2b201a]/80 mt-1 leading-relaxed">
+                                {{ item.desc }}
+                            </p>
+                        </div>
+
+                        <!-- 簡單的 Flexbox 微型示意圖 -->
+                        <div class="flex-shrink-0 w-24 h-12 bg-[#2b201a] rounded-lg p-1 flex items-center overflow-hidden" :style="getMiniDemoStyle(activeNotebook, val)">
+                            <div class="w-3 h-3 bg-red-500 rounded-sm m-0.5"></div>
+                            <div class="w-3 h-3 bg-blue-500 rounded-sm m-0.5"></div>
+                            <div class="w-3 h-3 bg-yellow-500 rounded-sm m-0.5"></div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="p-4 bg-[#bca383]/10 border-t border-[#bca383]/20 flex justify-end">
+                    <button @click="activeNotebook = null" class="bg-[#cd5a1e] text-white px-5 py-2 rounded-xl text-xs font-bold shadow transition">
+                        闔上筆記
+                    </button>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- 答案提示彈窗 -->
+        <div v-if="showAnswerModal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 transition-all">
+            <div class="bg-[#fcf8f2] text-[#2b201a] rounded-3xl border-4 border-[#bca383] max-w-sm w-full shadow-2xl overflow-hidden flex flex-col">
+                <div class="bg-[#cd5a1e] p-4 text-white font-black flex justify-between items-center border-b-4 border-[#1a1512]/10">
+                    <div class="flex items-center space-x-2 text-base">
+                        <i class="fa-solid fa-key text-yellow-300"></i>
+                        <span>洋蔥國王的皇家提示</span>
+                    </div>
+                    <button @click="showAnswerModal = false" class="text-white hover:text-gray-200 text-xl transition">
+                        <i class="fa-solid fa-circle-xmark"></i>
+                    </button>
+                </div>
+                <div class="p-6 text-center space-y-4">
+                    <p class="text-sm text-gray-700 font-bold leading-relaxed">
+                        這關卡關了嗎？沒關係！<br>這是本關主廚推薦的完美 CSS 語法：
+                    </p>
+                    <div class="bg-[#1f1a14] text-[#e8c07d] p-4 rounded-xl font-mono text-xs shadow-inner text-left select-all whitespace-pre-line leading-relaxed">
+                        {{ currentLevel.correctCSS }}
+                    </div>
+                    <p class="text-[10px] text-gray-500">
+                        您可以直接點擊下方按鈕，交給副主廚幫您自動填寫。
+                    </p>
+                </div>
+                <div class="p-4 bg-[#bca383]/10 border-t border-[#bca383]/20 flex justify-end space-x-2">
+                    <button @click="showAnswerModal = false" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow transition">
+                        我自己試試
+                    </button>
+                    <button @click="applyAnswer" class="bg-[#cd5a1e] hover:bg-[#e66f2d] text-white px-4 py-2 rounded-xl text-xs font-bold shadow transition flex items-center space-x-1">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        <span>自動套用答案</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 世紀大結局通關面板 -->
+        <div v-if="gameCompleted" class="fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div class="bg-gradient-to-b from-[#2b0c16] to-[#120308] text-[#f4ece1] rounded-3xl border-8 border-yellow-400 max-w-xl w-full p-8 shadow-2xl text-center space-y-6 transform scale-100 transition relative">
+                
+                <div class="absolute -top-12 left-1/2 -translate-x-1/2 bg-yellow-400 text-[#1a1512] w-24 h-24 rounded-full border-4 border-white flex items-center justify-center shadow-2xl animate-bounce">
+                    <span class="text-5xl">👑</span>
+                </div>
+
+                <div class="pt-8">
+                    <h1 class="text-4xl md:text-5xl font-black text-yellow-400 game-title-font uppercase tracking-wider">
+                        洋蔥王國拯救成功！
+                    </h1>
+                    <div class="flex justify-center space-x-2 my-4">
+                        <i v-for="n in 3" :key="n" class="fa-solid fa-star text-yellow-400 text-3xl animate-pulse"></i>
+                    </div>
+                </div>
+
+                <div class="bg-black/40 p-4 rounded-2xl border border-red-900 text-sm leading-relaxed text-left space-y-3">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-3xl">🧅</span>
+                        <p class="font-bold text-yellow-400">洋蔥國王大喊：</p>
+                    </div>
+                    <p class="text-white">
+                        「天啊！你做到了！完美的 Flexbox 世紀排班！意麵巨獸在吃了你的超級大餐後，開心地打了一個飽嗝，滿足地縮回時空裂縫深處了！世界危機解除啦！」
+                    </p>
+                    
+                    <div class="flex items-center space-x-2 pt-2 border-t border-red-950">
+                        <span class="text-3xl">🐶</span>
+                        <p class="font-bold text-yellow-400">忠犬凱文開心地：</p>
+                    </div>
+                    <p class="text-white">
+                        「汪汪汪！汪！（翻譯機：主廚萬歲！您現在已經是縱橫主軸、交錯軸與自動換行術的終極三星大主廚！請接受我們的最高禮讚！）」
+                    </p>
+                </div>
+
+                <div class="flex flex-col sm:flex-row justify-center items-center gap-4">
+                    <button @click="restartWholeGame" class="w-full sm:w-auto bg-green-600 hover:bg-green-500 text-white px-8 py-3 rounded-2xl font-black shadow-lg transform active:scale-95 transition">
+                        <i class="fa-solid fa-arrows-spin mr-1"></i> 再玩一次
+                    </button>
+                    <button @click="gameCompleted = false" class="w-full sm:w-auto bg-gray-700 hover:bg-gray-600 text-white px-8 py-3 rounded-2xl font-bold shadow-lg transition">
+                        留在本關欣賞
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // 定義完整 12 關卡資料陣列，確保沒有任何 ReferenceError
+        const levels = [
+            {
+                stage: "第一階段",
+                title: "新兵報到！移向出餐口",
+                advisor: "onion",
+                theme: "royal",
+                kitchenCode: "ROYAL-01",
+                story: "回到過去的第一天，洋蔥國王在皇家廚房看著手忙腳亂的你。「主廚！巨獸還沒來，但皇家宴會的漢堡已經做好了！兩位廚師現在呆站在左側準備區，快用 justify-content 把他們移到最右側的『出餐口』！」",
+                targetText: "使用 justify-content 讓廚師們靠右對齊出餐口。",
+                correctCSS: "justify-content: flex-end;",
+                chefs: ["cat", "racoon"],
+                foodEmoji: "🍔"
+            },
+            {
+                stage: "第一階段",
+                title: "中央砧板大作戰",
+                advisor: "onion",
+                theme: "royal",
+                kitchenCode: "ROYAL-02",
+                story: "為了應付即將湧入的大量蔬菜，國王搬出了皇家傳家寶『特大砧板』。「效率！效率！三位廚師請用 justify-content 集中到廚房正中央的巨型砧板前，一起切高麗菜！」",
+                targetText: "使用 justify-content 讓廚師們聚集在中間。",
+                correctCSS: "justify-content: center;",
+                chefs: ["cat", "racoon", "fox"],
+                foodEmoji: "🥬"
+            },
+            {
+                stage: "第一階段",
+                title: "防卡位安全距離",
+                advisor: "onion",
+                theme: "royal",
+                kitchenCode: "ROYAL-03",
+                story: "廚師們備料時太過興奮，一直拿菜刀互相碰撞。「喔不！凱文差點被你們切到！請使用 justify-content 讓三位廚師平均分散在流理台兩端與中間，彼此保持最大的安全距離！」",
+                targetText: "使用 justify-content 讓廚師們平均分佈，且兩端貼齊邊緣。",
+                correctCSS: "justify-content: space-between;",
+                chefs: ["cat", "racoon", "bear"],
+                foodEmoji: "🍲"
+            },
+            {
+                stage: "第二階段",
+                title: "水槽洗碗工",
+                advisor: "kevin",
+                theme: "royal",
+                kitchenCode: "ROYAL-04",
+                story: "髒盤子堆積如山，廚師們卻還想偷懶。凱文（透過翻譯機）：「汪！髒盤子堆得比我還高了！洗碗槽在廚房的最下方，利用 align-items 把所有廚師移動到最下面的洗碗槽前開始洗碗！」",
+                targetText: "使用 align-items 讓廚師們靠最下端（交錯軸終點）對齊。",
+                correctCSS: "align-items: flex-end;",
+                chefs: ["cat", "panda"],
+                foodEmoji: "🍽️"
+            },
+            {
+                stage: "第二階段",
+                title: "一心二用的終極防守",
+                advisor: "kevin",
+                theme: "royal",
+                kitchenCode: "FOREST-05",
+                story: "第一站來到森林，廚房空間變小了。凱文：「汪！優秀的廚師要能一邊顧後方的瓦斯爐（上方），一邊拿前方的食材（下方）。請結合 justify-content 與 align-items，將廚師們精準定位在廚房的正中心！」",
+                targetText: "同時水平與垂直置中對齊。",
+                correctCSS: "justify-content: center;\nalign-items: center;",
+                chefs: ["cat", "racoon"],
+                foodEmoji: "🥞"
+            },
+            {
+                stage: "第三階段",
+                title: "火山爆發！廚房著火啦！",
+                advisor: "onion",
+                theme: "lava",
+                kitchenCode: "LAVA-06",
+                story: "餐車開到了岩漿地帶，左側地板突然起火！洋蔥國王：「燙燙燙！左邊起火了！快使用 flex-direction 讓原本由左到右排隊的廚師們反過來，改由右到左排隊，避開火勢！」",
+                targetText: "旋轉主軸方向，改為右到左排列。",
+                correctCSS: "flex-direction: row-reverse;",
+                chefs: ["cat", "bear"],
+                foodEmoji: "🍕"
+            },
+            {
+                stage: "第三階段",
+                title: "窄巷河道",
+                advisor: "onion",
+                theme: "river",
+                kitchenCode: "RIVER-07",
+                story: "餐車開上了狹窄的竹筏，兩旁都是滾滾河水，廚房縮成了直立窄巷。「這河道太窄了！請使用 flex-direction 將廚師們的排隊方向改為『垂直縱向』，排成一條直線！」",
+                targetText: "將主軸方向改為垂直縱向排列。",
+                correctCSS: "flex-direction: column;",
+                chefs: ["cat", "racoon", "panda"],
+                foodEmoji: "🍣"
+            },
+            {
+                stage: "第三階段",
+                title: "急流中的出餐口",
+                advisor: "kevin",
+                theme: "river",
+                kitchenCode: "RIVER-08",
+                story: "竹筏順流而下，出餐口突然變到了『最下方』。凱文：「汪！竹筏急轉彎！在縱向廚房中，主軸變成了垂直方向！請將方向設為垂直，並使用 justify-content 將廚師們送到最下方的出餐口！」",
+                targetText: "垂直縱向排列，並在主軸（此時為垂直）上對齊終點。",
+                correctCSS: "flex-direction: column;\njustify-content: flex-end;",
+                chefs: ["cat", "fox"],
+                foodEmoji: "🍢"
+            },
+            {
+                stage: "第三階段",
+                title: "懸崖邊的食材架",
+                advisor: "onion",
+                theme: "ice",
+                kitchenCode: "ICE-09",
+                story: "魔法餐車開上了高聳的冰山，食材架在最右側的懸崖邊。洋蔥國王：「小心腳下！當主軸是垂直時，交錯軸就變成了水平。請將排隊方向設為垂直，並用 align-items 讓廚師們全部靠向右側的食材架！」",
+                targetText: "垂直縱向排列，並讓交錯軸（此時為水平）向終點對齊。",
+                correctCSS: "flex-direction: column;\nalign-items: flex-end;",
+                chefs: ["cat", "racoon"],
+                foodEmoji: "🍧"
+            },
+            {
+                stage: "第四階段",
+                title: "狂暴包子大塞車",
+                advisor: "onion",
+                theme: "royal",
+                kitchenCode: "BOOM-10",
+                story: "巨獸的陰影已經在地平線升起，村民們瘋狂搶購小籠包。「訂單爆炸了！6 盤小籠包如果硬擠在一行會被壓扁。請使用 flex-wrap，讓多出來的包子自動排到第二排餐盤中！」",
+                targetText: "啟用自動換行，避免廚師與餐點超出界線。",
+                correctCSS: "flex-wrap: wrap;",
+                chefs: ["cat", "racoon", "panda", "fox", "bear"],
+                foodEmoji: "🥟"
+            },
+            {
+                stage: "第四階段",
+                title: "雙排地獄烤箱",
+                advisor: "kevin",
+                theme: "lava",
+                kitchenCode: "BOOM-11",
+                story: "為了準備最後的決戰，我們需要烤製大量的披薩。凱文：「汪！烤箱全開！請將主軸設為垂直，並開啟自動換行，讓源源不絕的披薩排成左右兩列烤盤，效率加倍！」",
+                targetText: "垂直排列，且開啟自動折返換行（換列）。",
+                correctCSS: "flex-direction: column;\nflex-wrap: wrap;",
+                chefs: ["cat", "bear", "panda", "racoon"],
+                foodEmoji: "🍕"
+            },
+            {
+                stage: "第五階段",
+                title: "世紀大餐！滿足意麵巨獸！",
+                advisor: "onion",
+                theme: "monster",
+                kitchenCode: "FINAL-12",
+                story: "時空旅程結束，玩家回到了末日當天。巨大的『意麵巨獸』發出怒吼。地震讓廚房左右顛倒，訂單如雨般落下，這是最後的對決！洋蔥國王：「就是現在！世界末日！地板顛倒了（row-reverse），且訂單還在源源不絕進來（wrap）！請將大家在交錯軸上靠下對齊、主軸上保持安全距離。用 Flexbox 拯救世界吧，主廚們！」",
+                targetText: "主軸反向、自動折返、主軸兩端對齊、交錯軸靠下對齊。",
+                correctCSS: "flex-direction: row-reverse;\nflex-wrap: wrap;\njustify-content: space-between;\nalign-items: flex-end;",
+                chefs: ["cat", "racoon", "panda", "fox", "bear"],
+                foodEmoji: "👑"
+            }
+        ];
+
+        const notebookData = {
+            'justify-content': {
+                'flex-start': { desc: '讓元件在主軸起點（預設為最左側）對齊。' },
+                'flex-end': { desc: '讓元件在主軸終點（預設為最右側）對齊。' },
+                'center': { desc: '讓元件在主軸正中央對齊。' },
+                'space-between': { desc: '平均分配元件，兩端元件貼齊主軸邊緣，中間留白。' },
+                'space-around': { desc: '平均分配元件，每個元件兩側皆有相等的空白。' },
+                'space-evenly': { desc: '平均分配元件，所有元件與邊緣之間的空隙完全均等。' }
+            },
+            'align-items': {
+                'flex-start': { desc: '讓元件在交錯軸起點（預設為最上方瓦斯爐）對齊。' },
+                'flex-end': { desc: '讓元件在交錯軸終點（預設為最下方洗碗槽）對齊。' },
+                'center': { desc: '讓元件在交錯軸正中央對齊。' },
+                'stretch': { desc: '拉伸元件使其填滿交錯軸寬度。' },
+                'baseline': { desc: '對齊元件的文字基準線。' }
+            },
+            'flex-direction': {
+                'row': { desc: '主軸為水平方向（從左到右），預設排版格局。' },
+                'row-reverse': { desc: '主軸為水平反向（從右到左），用於逃避左側火災或障礙。' },
+                'column': { desc: '主軸轉向，改為垂直方向（由上到下），適合直立式窄巷、竹筏。' },
+                'column-reverse': { desc: '主軸為垂直反向（由下到上）。' }
+            },
+            'flex-wrap': {
+                'nowrap': { desc: '預設值，硬擠在同一排，即使溢出也不換行。' },
+                'wrap': { desc: '啟用第二條生產線，塞不下時自動折返排到下一行。' },
+                'wrap-reverse': { desc: '反向換行。' }
+            }
+        };
+
+        const { createApp, ref, computed, onMounted, nextTick } = Vue;
+
+        createApp({
+            setup() {
+                const currentLevelIndex = ref(0);
+                const userInput = ref("");
+                const levelPassed = ref(false);
+                const toggleLevelMenu = ref(false);
+                const activeNotebook = ref(null);
+                const showAnswerModal = ref(false);
+                const completedLevels = ref([]);
+                const gameCompleted = ref(false);
+                const editor = ref(null);
+
+                const toast = ref({ show: false, message: '', type: 'error' });
+                let toastTimer = null;
+
+                // 回報提示泡泡功能
+                const triggerToast = (msg, type = 'error') => {
+                    clearTimeout(toastTimer);
+                    toast.value.message = msg;
+                    toast.value.type = type;
+                    toast.value.show = true;
+                    toastTimer = setTimeout(() => {
+                        toast.value.show = false;
+                    }, 5000);
+                };
+
+                // 計算代碼編輯器數字行數
+                const lineCount = computed(() => {
+                    const lines = userInput.value.split('\n').length;
+                    return lines < 3 ? 3 : lines;
+                });
+
+                // 當前關卡資訊快捷綁定
+                const currentLevel = computed(() => levels[currentLevelIndex.value]);
+
+                // 綁定用戶輸入的 CSS
+                const userCode = computed(() => {
+                    return userInput.value;
+                });
+
+                onMounted(() => {
+                    const saved = localStorage.getItem('overcooked_flexbox_passed');
+                    if (saved) {
+                        completedLevels.value = JSON.parse(saved);
+                    }
+                    loadLevel(0);
+                });
+
+                // 輸入時觸發無感更新，更新渲染
+                const handleInput = () => {
+                    if (levelPassed.value) return;
+                };
+
+                const checkAnswer = () => {
+                    // 1. 語意標準化比對 (排除空白、註解與分號差異)
+                    const normalizeCSS = (str) => {
+                        return str
+                            .replace(/\/\*[\s\S]*?\*\//g, '') // 移除註解
+                            .replace(/\s+/g, '')             // 移除所有空白
+                            .replace(/;+$/, '')              // 移除尾部分號
+                            .replace(/;/g, '')               // 統一比對屬性
+                            .toLowerCase();
+                    };
+
+                    const userClean = normalizeCSS(userInput.value);
+                    const correctClean = normalizeCSS(currentLevel.value.correctCSS);
+
+                    // 2. 物理位置重合比對 (高容錯性驗證)
+                    let positionMatched = false;
+                    const userElements = document.querySelectorAll('.chef-item');
+                    const targetElements = document.querySelectorAll('.target-plate');
+
+                    if (userElements.length > 0 && targetElements.length > 0) {
+                        let allMatched = true;
+                        const tolerance = 5; // 誤差像素容許量
+
+                        for (let i = 0; i < userElements.length; i++) {
+                            const uRect = userElements[i].getBoundingClientRect();
+                            const tRect = targetElements[i].getBoundingClientRect();
+
+                            const uCenterX = uRect.left + uRect.width / 2;
+                            const uCenterY = uRect.top + uRect.height / 2;
+                            const tCenterX = tRect.left + tRect.width / 2;
+                            const tCenterY = tRect.top + tRect.height / 2;
+
+                            const diffX = Math.abs(uCenterX - tCenterX);
+                            const diffY = Math.abs(uCenterY - tCenterY);
+
+                            if (diffX > tolerance || diffY > tolerance) {
+                                allMatched = false;
+                                break;
+                            }
+                        }
+                        positionMatched = allMatched;
+                    }
+
+                    // 3. 雙軌判定決策
+                    if (userClean === correctClean || positionMatched) {
+                        triggerLevelSuccess();
+                        triggerToast("完美出餐！廚師們已全部精確就位！", "success");
+                    } else {
+                        // 4. 當答案不正確時，提供智能動態提示
+                        const correctCSS = currentLevel.value.correctCSS;
+                        let hint = "排班位置有誤喔！廚師還沒有完全抵達出餐點。";
+
+                        if (correctCSS.includes("justify-content") && !userInput.value.includes("justify-content")) {
+                            hint = "【提示】別忘了使用 'justify-content' 調整他們在「主軸（水平）」上的對齊方式喔！";
+                        } else if (correctCSS.includes("align-items") && !userInput.value.includes("align-items")) {
+                            hint = "【提示】這關需要使用 'align-items' 調整他們在「交錯軸（垂直）」上的對齊位置！";
+                        } else if (correctCSS.includes("flex-direction") && !userInput.value.includes("flex-direction")) {
+                            hint = "【提示】注意廚房格局！主軸方向需要用 'flex-direction' 旋轉（例如 column 或 row-reverse）喔！";
+                        } else if (correctCSS.includes("flex-wrap") && !userInput.value.includes("flex-wrap")) {
+                            hint = "【提示】訂單太多壓扁了！試著加入 'flex-wrap: wrap' 讓隊伍自動折返到第二排！";
+                        } else {
+                            hint = `【提示】語法不夠精準。本關卡推薦排班指令：\n${correctCSS}`;
+                        }
+
+                        triggerToast(hint, "error");
+                    }
+                };
+
+                // 通關特效與狀態更新
+                const triggerLevelSuccess = () => {
+                    levelPassed.value = true;
+                    if (!completedLevels.value.includes(currentLevelIndex.value)) {
+                        completedLevels.value.push(currentLevelIndex.value);
+                        localStorage.setItem('overcooked_flexbox_passed', JSON.stringify(completedLevels.value));
+                    }
+
+                    // 撒落彩色碎紙花
+                    confetti({
+                        particleCount: 150,
+                        spread: 80,
+                        origin: { y: 0.6 }
+                    });
+
+                    // 額外發射左右側邊彩帶
+                    setTimeout(() => {
+                        confetti({ particleCount: 50, angle: 60, spread: 55, origin: { x: 0 } });
+                        confetti({ particleCount: 50, angle: 120, spread: 55, origin: { x: 1 } });
+                    }, 300);
+                };
+
+                const loadLevel = (index) => {
+                    currentLevelIndex.value = index;
+                    userInput.value = "";
+                    levelPassed.value = false;
+                    toggleLevelMenu.value = false;
+                    activeNotebook.value = null;
+                    showAnswerModal.value = false;
+                    toast.value.show = false;
+
+                    nextTick(() => {
+                        if (editor.value) {
+                            editor.value.focus();
+                        }
+                    });
+                };
+
+                const selectLevel = (idx) => {
+                    loadLevel(idx);
+                };
+
+                const nextLevel = () => {
+                    if (currentLevelIndex.value < levels.length - 1) {
+                        loadLevel(currentLevelIndex.value + 1);
+                    } else {
+                        gameCompleted.value = true;
+                    }
+                };
+
+                const resetCurrentLevel = () => {
+                    userInput.value = "";
+                    levelPassed.value = false;
+                    triggerToast("已重置當前指令終端機！", "success");
+                    nextTick(() => {
+                        if (editor.value) editor.value.focus();
+                    });
+                };
+
+                const restartWholeGame = () => {
+                    completedLevels.value = [];
+                    localStorage.removeItem('overcooked_flexbox_passed');
+                    gameCompleted.value = false;
+                    loadLevel(0);
+                };
+
+                const openNotebook = (prop) => {
+                    activeNotebook.value = prop;
+                };
+
+                const revealAnswer = () => {
+                    showAnswerModal.value = true;
+                };
+
+                const applyAnswer = () => {
+                    userInput.value = currentLevel.value.correctCSS;
+                    showAnswerModal.value = false;
+                    nextTick(() => {
+                        checkAnswer();
+                    });
+                };
+
+                const insertValue = (prop, val) => {
+                    const statement = `${prop}: ${val};\n`;
+                    const regex = new RegExp(`${prop}\\s*:[^;]+;`, 'g');
+                    if (regex.test(userInput.value)) {
+                        userInput.value = userInput.value.replace(regex, `${prop}: ${val};`);
+                    } else {
+                        userInput.value += statement;
+                    }
+                    activeNotebook.value = null;
+                    handleInput();
+                };
+
+                const getMiniDemoStyle = (prop, val) => {
+                    let style = { display: 'flex' };
+                    if (prop === 'justify-content') {
+                        style['justify-content'] = val;
+                    } else if (prop === 'align-items') {
+                        style['align-items'] = val;
+                        style['flex-direction'] = 'row';
+                    } else if (prop === 'flex-direction') {
+                        style['flex-direction'] = val;
+                    } else if (prop === 'flex-wrap') {
+                        style['flex-wrap'] = val;
+                        style['width'] = '100%';
+                    }
+                    return style;
+                };
+
+                const getChefEmoji = (type) => {
+                    const emojis = {
+                        cat: "🐱",
+                        racoon: "🦝",
+                        panda: "🐼",
+                        fox: "🦊",
+                        bear: "🐻"
+                    };
+                    return emojis[type] || "👨‍🍳";
+                };
+
+                const getChefName = (type) => {
+                    const names = {
+                        cat: "貓咪主廚",
+                        racoon: "浣熊助手",
+                        panda: "熊貓麵點師",
+                        fox: "狐狸切菜工",
+                        bear: "烤箱熊大"
+                    };
+                    return names[type] || "廚師助手";
+                };
+
+                const getFloorClass = (theme) => {
+                    return {
+                        'floor-royal': theme === 'royal',
+                        'floor-lava': theme === 'lava',
+                        'floor-river': theme === 'river',
+                        'floor-ice': theme === 'ice',
+                        'floor-monster': theme === 'monster',
+                    };
+                };
+
+                return {
+                    levels,
+                    currentLevelIndex,
+                    userInput,
+                    levelPassed,
+                    toggleLevelMenu,
+                    activeNotebook,
+                    showAnswerModal,
+                    completedLevels,
+                    gameCompleted,
+                    lineCount,
+                    currentLevel,
+                    userCode,
+                    notebookData,
+                    toast,
+                    handleInput,
+                    checkAnswer,
+                    selectLevel,
+                    nextLevel,
+                    resetCurrentLevel,
+                    restartWholeGame,
+                    openNotebook,
+                    insertValue,
+                    getMiniDemoStyle,
+                    getChefEmoji,
+                    getChefName,
+                    getFloorClass,
+                    revealAnswer,
+                    applyAnswer,
+                    editor
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
